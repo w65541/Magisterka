@@ -26,3 +26,11 @@ for (int i = 0; i < 5; i++)
     csv.Add(csvResult);
 }
 TestCsv.WriteCsv("csvResult.csv", csv);
+
+var result = await Testing.RunTestAsync(
+    data,
+    "test.parquet",
+    TestParquet.WriteParquet,
+    TestParquet.ReadParquet<RecordInt>
+);
+Console.WriteLine($"Parquet - Write Time: {result.WriteTimeMs} ms, Read Time: {result.ReadTimeMs} ms, File Size: {result.FileSizeBytes} bytes, Memory Used: {result.MemoryUsedBytes} bytes, Write Throughput: {result.WriteThroughput} MB/s, Read Throughput: {result.ReadThroughput} MB/s");
