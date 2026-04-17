@@ -13,6 +13,7 @@ namespace Magisterka.Test
         public double WriteThroughput { get; set; }
         public double ReadThroughput { get; set; }
         public long FileSizeBytes { get; set; }
-        public long MemoryUsedBytes { get; set; }
+        public long WriteMemoryUsedBytes { get; set; }
+        public long ReadMemoryUsedBytes { get; set; }
     }
 }

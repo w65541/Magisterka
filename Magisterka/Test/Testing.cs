@@ -15,7 +15,13 @@ namespace Magisterka.Test
             long memoryBefore = process.WorkingSet64;
 
             var sw = Stopwatch.StartNew();
-            write(path, data);
+
+
+            long peakWrite = MeasurePeakMemory(() =>
+            {
+                write(path, data);
+            });
+            
             sw.Stop();
 
             result.WriteTimeMs = sw.ElapsedMilliseconds;
@@ -24,14 +30,18 @@ namespace Magisterka.Test
             result.FileSizeBytes = fileSize;
 
             sw.Restart();
-            var readData = read(path);
+            long peakRead = MeasurePeakMemory(() =>
+            {
+                var readData = read(path);
+            });
             sw.Stop();
 
             result.ReadTimeMs = sw.ElapsedMilliseconds;
 
             long memoryAfter = process.WorkingSet64;
-            result.MemoryUsedBytes = memoryAfter - memoryBefore;
-
+            result.ReadMemoryUsedBytes = memoryAfter - peakRead;
+            result.WriteMemoryUsedBytes = memoryAfter - peakWrite;
+            Console.WriteLine($"Memory before: {memoryBefore / (1024.0 * 1024.0)} bytes, Memory after: {peakRead / (1024.0 * 1024.0)} bytes");
             double fileSizeMB = fileSize / (1024.0 * 1024.0);
 
             result.WriteThroughput = fileSizeMB / (result.WriteTimeMs / 1000.0);
@@ -45,10 +55,15 @@ namespace Magisterka.Test
             var result = new BenchmarkResult();
 
             var process = Process.GetCurrentProcess();
-            long memoryBefore = process.WorkingSet64;
+            long memoryBeforeWrite = process.WorkingSet64;
 
             var sw = Stopwatch.StartNew();
-            await write(path, data);
+
+            long peakMemoryWrite = await MeasurePeakMemoryAsync(async () =>
+            {
+                await write(path, data);
+            });
+
             sw.Stop();
 
             result.WriteTimeMs = sw.ElapsedMilliseconds;
@@ -57,16 +72,21 @@ namespace Magisterka.Test
             result.FileSizeBytes = fileSize;
 
             sw.Restart();
-            var readData = await read(path);
+            long memoryBeforeRead = process.WorkingSet64;
+            long peakMemoryRead = await MeasurePeakMemoryAsync(async () =>
+            {
+                var readData = await read(path);
+            });
+
             sw.Stop();
 
             result.ReadTimeMs = sw.ElapsedMilliseconds;
 
-            long memoryAfter = process.WorkingSet64;
-            result.MemoryUsedBytes = memoryAfter - memoryBefore;
-
+            result.ReadMemoryUsedBytes = peakMemoryRead - memoryBeforeRead;
+            result.WriteMemoryUsedBytes = memoryBeforeWrite - memoryBeforeRead;
             double fileSizeMB = fileSize / (1024.0 * 1024.0);
 
+            Console.WriteLine($"Memory before: {memoryBeforeRead} bytes, Memory after: {peakMemoryRead} bytes");
             result.WriteThroughput = fileSizeMB / (result.WriteTimeMs / 1000.0);
             result.ReadThroughput = fileSizeMB / (result.ReadTimeMs / 1000.0);
 
@@ -126,6 +146,70 @@ namespace Magisterka.Test
                 TestCsv.WriteCsv("csvResult" + path + ".csv", results);
             }
 
+        }
+
+        public static async Task<long> MeasurePeakMemoryAsync(Func<Task> action)
+        {
+            var process = Process.GetCurrentProcess();
+            long peakMemory = process.WorkingSet64;
+
+            using var cts = new CancellationTokenSource();
+
+            var monitoring = Task.Run(async () =>
+            {
+                while (!cts.Token.IsCancellationRequested)
+                {
+                    long current = process.WorkingSet64;
+                    if (current > peakMemory)
+                        peakMemory = current;
+
+                    await Task.Delay(1);
+                }
+            });
+
+            // wykonanie właściwej operacji
+            await action();
+
+            // zatrzymanie monitoringu
+            cts.Cancel();
+
+            // czekamy aż task się zakończy
+            await monitoring;
+
+            return peakMemory;
+        }
+
+        public static long MeasurePeakMemory(Action action)
+        {
+            var process = Process.GetCurrentProcess();
+            long peakMemory = process.WorkingSet64;
+
+            using var cts = new CancellationTokenSource();
+
+            var monitoringThread = new Thread(() =>
+            {
+                while (!cts.Token.IsCancellationRequested)
+                {
+                    long current = process.WorkingSet64;
+                    if (current > peakMemory)
+                        peakMemory = current;
+
+                    Thread.Sleep(1); // próbkowanie co 1 ms
+                }
+            });
+
+            monitoringThread.Start();
+
+            // wykonanie operacji
+            action();
+
+            // zatrzymanie monitoringu
+            cts.Cancel();
+
+            // czekamy aż wątek się zakończy
+            monitoringThread.Join();
+
+            return peakMemory;
         }
     }
 }
