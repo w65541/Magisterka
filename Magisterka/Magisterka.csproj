@@ -9,7 +9,11 @@
 
   <ItemGroup>
     <PackageReference Include="CsvHelper" Version="33.1.0" />
-    <PackageReference Include="Parquet.Net" Version="5.5.0" />
+    <PackageReference Include="Parquet.Net" Version="4.25.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Folder Include="Parquet\" />
   </ItemGroup>
 
 </Project>

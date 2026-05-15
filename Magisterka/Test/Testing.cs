@@ -1,6 +1,5 @@
 ﻿using Magisterka.CSV;
 using Magisterka.Data;
-using Magisterka.Parquet;
 using System.Diagnostics;
 
 namespace Magisterka.Test
@@ -41,7 +40,6 @@ namespace Magisterka.Test
             long memoryAfter = process.WorkingSet64;
             result.ReadMemoryUsedBytes = memoryAfter - peakRead;
             result.WriteMemoryUsedBytes = memoryAfter - peakWrite;
-            Console.WriteLine($"Memory before: {memoryBefore / (1024.0 * 1024.0)} bytes, Memory after: {peakRead / (1024.0 * 1024.0)} bytes");
             double fileSizeMB = fileSize / (1024.0 * 1024.0);
 
             result.WriteThroughput = fileSizeMB / (result.WriteTimeMs / 1000.0);
@@ -49,7 +47,51 @@ namespace Magisterka.Test
 
             return result;
         }
+        public static BenchmarkResult RunParquetTest<T>(List<T> data, string path) where T : class, new()
+        {
+            var result = new BenchmarkResult();
 
+            var process = Process.GetCurrentProcess();
+            long memoryBeforeWrite = process.WorkingSet64;
+
+            var sw = Stopwatch.StartNew();
+
+            long peakWrite = MeasurePeakMemory(() =>
+            {
+                Console.WriteLine("Before write");
+                TestParquet.WriteParquet(path, data);
+                Console.WriteLine("After write");
+            });
+
+
+            sw.Stop();
+            Console.WriteLine(peakWrite);
+            result.WriteTimeMs = sw.ElapsedMilliseconds;
+            var fileSize = new FileInfo(path+".parquet").Length;
+            result.FileSizeBytes = fileSize;
+            long memoryBeforeRead = process.WorkingSet64;
+            
+            sw.Restart();
+            long peakRead = MeasurePeakMemory(() =>
+            {
+
+                TestParquet.ReadParquet<T>(path);
+
+            });
+            sw.Stop();
+
+            result.ReadTimeMs = sw.ElapsedMilliseconds;
+
+            result.ReadMemoryUsedBytes = peakRead - memoryBeforeRead;
+            result.WriteMemoryUsedBytes = peakWrite - memoryBeforeWrite;
+            double fileSizeMB = fileSize / (1024.0 * 1024.0);
+
+            //Console.WriteLine($"Memory before: {memoryBeforeRead} bytes, Memory after: {peakMemoryRead} bytes");
+            result.WriteThroughput = fileSizeMB / (result.WriteTimeMs / 1000.0);
+            result.ReadThroughput = fileSizeMB / (result.ReadTimeMs / 1000.0);
+            return result;
+        }
+           
         public static async Task<BenchmarkResult> RunTestAsync<T>(List<T> data, string path, Func<string, IEnumerable<T>, Task> write, Func<string, Task<List<T>>> read)
         {
             var result = new BenchmarkResult();
@@ -59,25 +101,38 @@ namespace Magisterka.Test
 
             var sw = Stopwatch.StartNew();
 
-            long peakMemoryWrite = await MeasurePeakMemoryAsync(async () =>
-            {
+           /* long peakMemoryWrite = await MeasurePeakMemoryAsync(async () =>
+            {*/
+                Console.WriteLine("Before write");
                 await write(path, data);
-            });
+                Console.WriteLine("After write");
+            //});
 
+            Console.WriteLine("A");
             sw.Stop();
-
+            Console.WriteLine("B");
             result.WriteTimeMs = sw.ElapsedMilliseconds;
-
-            var fileSize = new FileInfo(path).Length;
+            Console.WriteLine("C");
+            var fileSize = 123;
             result.FileSizeBytes = fileSize;
-
+            Console.WriteLine("D");
             sw.Restart();
+            Console.WriteLine("E");
             long memoryBeforeRead = process.WorkingSet64;
-            long peakMemoryRead = await MeasurePeakMemoryAsync(async () =>
-            {
-                var readData = await read(path);
-            });
-
+            Console.WriteLine("F");
+            Console.WriteLine("read is null: " + (read == null));
+            Console.WriteLine("read type: " + read.GetType());
+            /*long peakMemoryRead = await MeasurePeakMemoryAsync2(async () =>
+            {*/
+            ThreadPool.GetAvailableThreads(out int workers, out int iocp);
+            Console.WriteLine($"Available threads: workers={workers} iocp={iocp}");
+            Console.WriteLine("Before read");
+            //var readData = await TestParquet.ReadParquet<RecordInt>(path);// await read(path );
+          //  var testResult = await TestParquet.ReadParquet<RecordInt>(path);
+            Console.WriteLine("after read");
+            /*
+            });*/
+            long peakMemoryRead = 1;
             sw.Stop();
 
             result.ReadTimeMs = sw.ElapsedMilliseconds;
@@ -92,32 +147,94 @@ namespace Magisterka.Test
 
             return result;
         }
-        public static async void runXcsvAsync<T>(List<T> data, string path, int x) where T : class, new()
+        public static void runXcparquet<T>(List<T> data, string path,int x) where T : class, new()
         {
+            
+            try
+            {
+
+           
+            Console.WriteLine("Start parquet");
             //Warm up
             for (int i = 0; i < 15; i++)
             {
-                BenchmarkResult csvResult = await Testing.RunTestAsync(
+                Console.WriteLine("Start parquet warm up");
+                BenchmarkResult csvResult = Testing.RunParquetTest<T>(
                 data,
-                path,
-                TestParquet.WriteParquet,
-                TestParquet.ReadParquet<T>
-            );
+                path
+                );
+                    /*
+                    var result = new BenchmarkResult();
+
+                    var process = Process.GetCurrentProcess();
+                    long memoryBeforeWrite = process.WorkingSet64;
+
+                    var sw = Stopwatch.StartNew();
+
+                    long peakWrite = MeasurePeakMemory(() =>
+                    {
+                        Console.WriteLine("Before write");
+                        TestParquet.WriteParquet(path, data);
+                        Console.WriteLine("After write");
+                    });
+
+                
+                    sw.Stop();
+                    Console.WriteLine(peakWrite);
+                    Console.WriteLine("B");
+                    result.WriteTimeMs = sw.ElapsedMilliseconds;
+                    Console.WriteLine("C");
+                    var fileSize = 123;
+                    result.FileSizeBytes = fileSize;
+                    Console.WriteLine("D");
+                    
+                    Console.WriteLine("E");
+                    long memoryBeforeRead = process.WorkingSet64;
+                    Console.WriteLine("F");
+                    sw.Restart();
+                    long peakRead = MeasurePeakMemory(() =>
+                    {
+                    
+                     TestParquet.ReadParquet<T>(path); 
+                   
+                    });
+                    sw.Stop();
+
+                    result.ReadTimeMs = sw.ElapsedMilliseconds;
+
+                    result.ReadMemoryUsedBytes = peakRead - memoryBeforeRead;
+                    result.WriteMemoryUsedBytes = peakWrite - memoryBeforeWrite;
+                    double fileSizeMB = fileSize / (1024.0 * 1024.0);
+
+                    //Console.WriteLine($"Memory before: {memoryBeforeRead} bytes, Memory after: {peakMemoryRead} bytes");
+                    result.WriteThroughput = fileSizeMB / (result.WriteTimeMs / 1000.0);
+                    result.ReadThroughput = fileSizeMB / (result.ReadTimeMs / 1000.0);
+
+
+
+
+                    */
+                    Console.WriteLine($"Stop parquet warm up {i}/15");
             }
-                List<BenchmarkResult> results = new List<BenchmarkResult>();
+            Console.WriteLine("End parquet warm up");
+            List<BenchmarkResult> results = new List<BenchmarkResult>();
                 for (int i = 0; i < x; i++)
                 {
-                    BenchmarkResult csvResult = await Testing.RunTestAsync(
-                    data,
-                    path,
-                    TestParquet.WriteParquet,
-                    TestParquet.ReadParquet<T>
+                    BenchmarkResult csvResult = Testing.RunParquetTest<T>(
+                data,
+                path
                 );
                     results.Add(csvResult);
-                }
+                Console.WriteLine($"Test {i + 1}/{x} completed for {path}");
+            }
                 TestCsv.WriteCsv("parquetResult" + path + ".csv", results);
+                return;
+            }
+            catch (Exception)
+            {
 
-
+                throw;
+            }
         }
         public static void runXcsv<T>(List<T> data, string path, int x)
         {
@@ -130,22 +247,60 @@ namespace Magisterka.Test
                 TestCsv.WriteCsv,
                  TestCsv.ReadCsv<T>
             );
+            }
 
 
                 List<BenchmarkResult> results = new List<BenchmarkResult>();
-                for (i = 0; i < x; i++)
+                for (int i = 0; i < x; i++)
                 {
-                    csvResult = Testing.RunTest(
+                    var result = Testing.RunTest(
                     data,
                     path,
                     TestCsv.WriteCsv,
                      TestCsv.ReadCsv<T>
                 );
-                    results.Add(csvResult);
+                    results.Add(result);
+                    Console.WriteLine($"Test {i + 1}/{x} completed for {path}");
                 }
                 TestCsv.WriteCsv("csvResult" + path + ".csv", results);
             }
 
+        public static async Task<long> MeasurePeakMemoryAsync2(Func<Task> action)
+        {
+            var process = Process.GetCurrentProcess();
+            long peakMemory = process.WorkingSet64;
+
+            using var cts = new CancellationTokenSource();
+
+            var monitoring = Task.Run(async () =>
+            {
+                try
+                {
+                    while (!cts.Token.IsCancellationRequested)
+                    {
+                        process.Refresh();
+
+                        long current = process.WorkingSet64;
+
+                        if (current > peakMemory)
+                            peakMemory = current;
+
+                        await Task.Delay(1, cts.Token);
+                    }
+                }
+                catch (TaskCanceledException)
+                {
+                    // normalne zakończenie
+                }
+            });
+
+            await action();
+
+            cts.Cancel();
+
+            await monitoring;
+
+            return peakMemory;
         }
 
         public static async Task<long> MeasurePeakMemoryAsync(Func<Task> action)
