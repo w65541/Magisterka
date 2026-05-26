@@ -6,22 +6,13 @@ using Parquet.Serialization;
 using System.Diagnostics;
 using static System.Runtime.InteropServices.JavaScript.JSType;
 
-Console.WriteLine("Hello, World!");
+Console.WriteLine("Start");
 SynchronizationContext.SetSynchronizationContext(null);
-try
-{
-    using var ms = new MemoryStream();
-    await ParquetSerializer.SerializeAsync(new List<RecordInt>(), ms);
-    ms.Position = 0;
-    await ParquetSerializer.DeserializeAsync<RecordInt>(ms);
-}
-catch { }
+
 
 DataGenerator generator = new DataGenerator();
 Stopwatch stopwatch = Stopwatch.StartNew();
-List<RecordInt> dataInt=generator.GenerateInt(10000000);
-stopwatch.Stop();
-Console.WriteLine("done in "+stopwatch.ToString());
+
 List<BenchmarkResult> csv=new List<BenchmarkResult>();
 
 /*

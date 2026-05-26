@@ -1,5 +1,6 @@
 ﻿using Magisterka.CSV;
 using Magisterka.Data;
+using System;
 using System.Diagnostics;
 
 namespace Magisterka.Test
@@ -11,7 +12,7 @@ namespace Magisterka.Test
             var result = new BenchmarkResult();
 
             var process = Process.GetCurrentProcess();
-            long memoryBefore = process.WorkingSet64;
+            long memoryBefore = GC.GetTotalMemory(false); //process.WorkingSet64;
 
             var sw = Stopwatch.StartNew();
 
@@ -28,6 +29,11 @@ namespace Magisterka.Test
             var fileSize = new FileInfo(path).Length;
             result.FileSizeBytes = fileSize;
 
+            GC.Collect();
+            GC.WaitForPendingFinalizers();
+            GC.Collect();
+            process.Refresh();
+
             sw.Restart();
             long peakRead = MeasurePeakMemory(() =>
             {
@@ -37,9 +43,8 @@ namespace Magisterka.Test
 
             result.ReadTimeMs = sw.ElapsedMilliseconds;
 
-            long memoryAfter = process.WorkingSet64;
-            result.ReadMemoryUsedBytes = memoryAfter - peakRead;
-            result.WriteMemoryUsedBytes = memoryAfter - peakWrite;
+            result.ReadMemoryUsedBytes = memoryBefore - peakRead;
+            result.WriteMemoryUsedBytes = memoryBefore - peakWrite;
             double fileSizeMB = fileSize / (1024.0 * 1024.0);
 
             result.WriteThroughput = fileSizeMB / (result.WriteTimeMs / 1000.0);
@@ -52,7 +57,7 @@ namespace Magisterka.Test
             var result = new BenchmarkResult();
 
             var process = Process.GetCurrentProcess();
-            long memoryBeforeWrite = process.WorkingSet64;
+            long memoryBeforeWrite = GC.GetTotalMemory(false); // process.WorkingSet64;
 
             var sw = Stopwatch.StartNew();
 
@@ -70,7 +75,12 @@ namespace Magisterka.Test
             var fileSize = new FileInfo(path+".parquet").Length;
             result.FileSizeBytes = fileSize;
             long memoryBeforeRead = process.WorkingSet64;
-            
+
+            GC.Collect();
+            GC.WaitForPendingFinalizers();
+            GC.Collect();
+            process.Refresh();
+
             sw.Restart();
             long peakRead = MeasurePeakMemory(() =>
             {
@@ -217,7 +227,12 @@ namespace Magisterka.Test
                     Console.WriteLine($"Stop parquet warm up {i}/15");
             }
             Console.WriteLine("End parquet warm up");
-            List<BenchmarkResult> results = new List<BenchmarkResult>();
+
+                GC.Collect();
+                GC.WaitForPendingFinalizers();
+                GC.Collect();
+
+                List<BenchmarkResult> results = new List<BenchmarkResult>();
                 for (int i = 0; i < x; i++)
                 {
                     BenchmarkResult csvResult = Testing.RunParquetTest<T>(
@@ -226,7 +241,10 @@ namespace Magisterka.Test
                 );
                     results.Add(csvResult);
                 Console.WriteLine($"Test {i + 1}/{x} completed for {path}");
-            }
+                    GC.Collect();
+                    GC.WaitForPendingFinalizers();
+                    GC.Collect();
+                }
                 TestCsv.WriteCsv("parquetResult" + path + ".csv", results);
                 return;
             }
@@ -249,8 +267,11 @@ namespace Magisterka.Test
             );
             }
 
+            GC.Collect();
+            GC.WaitForPendingFinalizers();
+            GC.Collect();
 
-                List<BenchmarkResult> results = new List<BenchmarkResult>();
+            List<BenchmarkResult> results = new List<BenchmarkResult>();
                 for (int i = 0; i < x; i++)
                 {
                     var result = Testing.RunTest(
@@ -261,7 +282,10 @@ namespace Magisterka.Test
                 );
                     results.Add(result);
                     Console.WriteLine($"Test {i + 1}/{x} completed for {path}");
-                }
+                GC.Collect();
+                GC.WaitForPendingFinalizers();
+                GC.Collect();
+            }
                 TestCsv.WriteCsv("csvResult" + path + ".csv", results);
             }
 
@@ -337,33 +361,27 @@ namespace Magisterka.Test
 
         public static long MeasurePeakMemory(Action action)
         {
-            var process = Process.GetCurrentProcess();
-            long peakMemory = process.WorkingSet64;
+            GC.Collect();
+            GC.WaitForPendingFinalizers();
+            GC.Collect();
 
+            long peakMemory = GC.GetTotalMemory(false);
             using var cts = new CancellationTokenSource();
 
             var monitoringThread = new Thread(() =>
             {
                 while (!cts.Token.IsCancellationRequested)
                 {
-                    process.Refresh();
-                    long current = process.WorkingSet64;
+                    long current = GC.GetTotalMemory(false);
                     if (current > peakMemory)
                         peakMemory = current;
                     Thread.Sleep(1);
-                    
                 }
             });
 
             monitoringThread.Start();
-
-            // wykonanie operacji
             action();
-
-            // zatrzymanie monitoringu
             cts.Cancel();
-
-            // czekamy aż wątek się zakończy
             monitoringThread.Join();
 
             return peakMemory;
