@@ -15,30 +15,15 @@ Stopwatch stopwatch = Stopwatch.StartNew();
 
 List<BenchmarkResult> csv=new List<BenchmarkResult>();
 
-/*
-for (int i = 0; i < 5; i++)
-{
-    BenchmarkResult csvResult = Testing.RunTest(
-    dataInt,
-    "data.csv",
-    TestCsv.WriteCsv,
-     TestCsv.ReadCsv<RecordInt>
-);
-    csv.Add(csvResult);
-}
-TestCsv.WriteCsv("csvResult.csv", csv);
 
+intTest(100);
+stringTest(100);
+boolTest(100);
+dateTest(100);
+doubleTest(100);
+mixedTest(100);
 
-var result = await Testing.RunTestAsync(
-    dataInt,
-    "test.parquet",
-    TestParquet.WriteParquet,
-    TestParquet.ReadParquet<RecordInt>
-);
-Console.WriteLine($"Parquet - Write Time: {result.WriteTimeMs} ms, Read Time: {result.ReadTimeMs} ms, File Size: {result.FileSizeBytes} bytes, Memory Used: {result.ReadMemoryUsedBytes} bytes, Write Throughput: {result.WriteThroughput} MB/s, Read Throughput: {result.ReadThroughput} MB/s");
-*/
-intTest(10);
- void intTest(int x)
+void intTest(int x)
 {
     List<RecordInt> data = generator.GenerateInt(10000000);
     Testing.runXcsv<RecordInt>(data, "TestResultCsvInt", x);
