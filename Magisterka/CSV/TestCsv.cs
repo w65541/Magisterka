@@ -15,6 +15,7 @@ namespace Magisterka.CSV
             using var csv = new CsvHelper.CsvWriter(writer, CultureInfo.InvariantCulture);
 
             csv.WriteRecords(data);
+            writer.Flush();
         }
 
         public static List<T> ReadCsv<T>(string path)

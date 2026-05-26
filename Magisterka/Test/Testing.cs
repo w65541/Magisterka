@@ -314,6 +314,7 @@ namespace Magisterka.Test
             {
                 while (!cts.Token.IsCancellationRequested)
                 {
+
                     long current = process.WorkingSet64;
                     if (current > peakMemory)
                         peakMemory = current;
@@ -345,11 +346,12 @@ namespace Magisterka.Test
             {
                 while (!cts.Token.IsCancellationRequested)
                 {
+                    process.Refresh();
                     long current = process.WorkingSet64;
                     if (current > peakMemory)
                         peakMemory = current;
-
-                    Thread.Sleep(1); // próbkowanie co 1 ms
+                    Thread.Sleep(1);
+                    
                 }
             });
 
